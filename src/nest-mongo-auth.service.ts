@@ -27,7 +27,7 @@ export class NestMongoAuthService<T> {
 
   constructor(
     @Inject(NMA_MODULE_CONFIGS) options: NMAModuleSetupOptions,
-    private readonly jwtService: JWTService
+    private readonly jwtService: JWTService,
   ) {
     this.userProjection = options.userProjection;
     this.userProps = options.userProperties;
@@ -38,7 +38,7 @@ export class NestMongoAuthService<T> {
   async login(
     userModel: Model<any>,
     dto: LoginDto,
-    maxAttempts: number
+    maxAttempts: number,
   ): Promise<LoginResponseType> {
     try {
       const userEx = await userModel.findOne({
@@ -62,14 +62,14 @@ export class NestMongoAuthService<T> {
               {
                 [this.userProps.attempts]: 0,
                 [this.userProps.code]: code,
-              }
+              },
             );
             return Promise.resolve({ status: AuthStatus.SendCode, code });
           }
           const cleanUser = await userModel.findOneAndUpdate(
             { [this.userProps.email]: dto.email },
             { [this.userProps.attempts]: 0 },
-            { new: true, projection: this.userProjection }
+            { new: true, projection: this.userProjection },
           );
           const dataToJWT = this.generateDataForJWT(user);
           const jwt = await this.jwtService.GenerateToken(dataToJWT);
@@ -90,13 +90,13 @@ export class NestMongoAuthService<T> {
                 {
                   [this.userProps.attempts]: maxAttempts,
                   [this.userProps.isBlock]: true,
-                }
+                },
               );
               return Promise.resolve({ status: AuthStatus.Blocked });
             } else {
               await userModel.findOneAndUpdate(
                 { [this.userProps.email]: dto.email },
-                { [this.userProps.attempts]: attempts + 1 }
+                { [this.userProps.attempts]: attempts + 1 },
               );
               return Promise.resolve({
                 status: AuthStatus.LeftAttempts,
@@ -128,11 +128,7 @@ export class NestMongoAuthService<T> {
     }
   }
 
-  async register(
-    userModel: Model<any>,
-    dto: LoginDto,
-    anyFields: any
-  ): Promise<BaseResponseType> {
+  async register(userModel: Model<any>, dto: LoginDto, anyFields: any): Promise<BaseResponseType> {
     try {
       const user = await userModel.findOne({
         [this.userProps.email]: dto.email,
@@ -147,17 +143,29 @@ export class NestMongoAuthService<T> {
         });
         return Promise.resolve({ status: AuthStatus.SendCode, code });
       } else {
-        return Promise.resolve({ status: AuthStatus.UserExists });
+        if (user[this.userProps.isActive]) {
+          return Promise.resolve({ status: AuthStatus.UserExists });
+        } else {
+          const code = this.codeGenerator();
+          await userModel.findOneAndUpdate(
+            {
+              [this.userProps.email]: dto.email,
+            },
+            {
+              ...anyFields,
+              [this.userProps.pass]: this.hashPassword(dto.password),
+              [this.userProps.code]: code,
+            },
+          );
+          return Promise.resolve({ status: AuthStatus.SendCode, code });
+        }
       }
     } catch (error) {
       return Promise.resolve({ status: AuthStatus.Error, error });
     }
   }
 
-  async forgotPass(
-    userModel: Model<any>,
-    dto: EmailDto
-  ): Promise<ForgotResponseType> {
+  async forgotPass(userModel: Model<any>, dto: EmailDto): Promise<ForgotResponseType> {
     try {
       const user = await userModel.findOne({
         [this.userProps.email]: dto.email,
@@ -166,7 +174,7 @@ export class NestMongoAuthService<T> {
         const code = this.codeGenerator();
         await userModel.findOneAndUpdate(
           { [this.userProps.email]: dto.email },
-          { [this.userProps.code]: code }
+          { [this.userProps.code]: code },
         );
         return Promise.resolve({ status: AuthStatus.SendCode, code });
       } else {
@@ -177,10 +185,7 @@ export class NestMongoAuthService<T> {
     }
   }
 
-  async confirmCode(
-    userModel: Model<any>,
-    dto: ConfirmDto
-  ): Promise<ConfirmCodeResponseType> {
+  async confirmCode(userModel: Model<any>, dto: ConfirmDto): Promise<ConfirmCodeResponseType> {
     try {
       const user = await userModel.findOne({
         [this.userProps.email]: dto.email,
@@ -200,7 +205,7 @@ export class NestMongoAuthService<T> {
             [this.userProps.attempts]: 0,
             ...pass,
           },
-          { new: true, projection: this.userProjection }
+          { new: true, projection: this.userProjection },
         );
         const dataToJWT = this.generateDataForJWT(updatedUser);
         const jwt = await this.jwtService.GenerateToken(dataToJWT);
