@@ -14,7 +14,6 @@ import {
   NMAModuleSetupOptions,
 } from "./nest-mongo-auth.dto";
 import { NMA_MODULE_CONFIGS } from "./constants";
-import { JWTService } from "nest-jwt-module";
 
 type ID = string | Types.ObjectId;
 
@@ -25,10 +24,7 @@ export class NestMongoAuthService<T> {
   private codeGenerator: Function;
   private hashPassword: Function;
 
-  constructor(
-    @Inject(NMA_MODULE_CONFIGS) options: NMAModuleSetupOptions,
-    private readonly jwtService: JWTService,
-  ) {
+  constructor(@Inject(NMA_MODULE_CONFIGS) options: NMAModuleSetupOptions) {
     this.userProjection = options.userProjection;
     this.userProps = options.userProperties;
     this.codeGenerator = options.codeGenerator;
@@ -37,6 +33,7 @@ export class NestMongoAuthService<T> {
 
   async login(
     userModel: Model<any>,
+    generateToken: any,
     dto: LoginDto,
     maxAttempts: number,
   ): Promise<LoginResponseType> {
@@ -72,7 +69,7 @@ export class NestMongoAuthService<T> {
             { new: true, projection: this.userProjection },
           );
           const dataToJWT = this.generateDataForJWT(user);
-          const jwt = await this.jwtService.GenerateToken(dataToJWT);
+          const jwt = await generateToken(dataToJWT);
           return Promise.resolve({
             status: AuthStatus.Logined,
             user: cleanUser,
@@ -113,12 +110,12 @@ export class NestMongoAuthService<T> {
     }
   }
 
-  async auth(userModel: Model<any>, userID: ID): Promise<AuthResponseType> {
+  async auth(userModel: Model<any>, generateToken: any, userID: ID): Promise<AuthResponseType> {
     try {
       const user = await userModel.findById(userID, this.userProjection);
       if (user) {
         const dataToJWT = this.generateDataForJWT(user);
-        const jwt = await this.jwtService.GenerateToken(dataToJWT);
+        const jwt = await generateToken(dataToJWT);
         return Promise.resolve({ status: AuthStatus.Logined, user, jwt });
       } else {
         return Promise.resolve({ status: AuthStatus.NotFound });
@@ -185,7 +182,11 @@ export class NestMongoAuthService<T> {
     }
   }
 
-  async confirmCode(userModel: Model<any>, dto: ConfirmDto): Promise<ConfirmCodeResponseType> {
+  async confirmCode(
+    userModel: Model<any>,
+    generateToken: any,
+    dto: ConfirmDto,
+  ): Promise<ConfirmCodeResponseType> {
     try {
       const user = await userModel.findOne({
         [this.userProps.email]: dto.email,
@@ -208,7 +209,7 @@ export class NestMongoAuthService<T> {
           { new: true, projection: this.userProjection },
         );
         const dataToJWT = this.generateDataForJWT(updatedUser);
-        const jwt = await this.jwtService.GenerateToken(dataToJWT);
+        const jwt = await generateToken(dataToJWT);
         return Promise.resolve({
           status: AuthStatus.Logined,
           user: updatedUser,

@@ -5,17 +5,11 @@ import { NestMongoAuthService } from "./nest-mongo-auth.service";
 
 @Module({})
 export class NestMongoAuthModule {
-  static forRoot(
-    JWTModule: any,
-    options: NMAModuleSetupOptions
-  ): DynamicModule {
+  static forRoot(options: NMAModuleSetupOptions): DynamicModule {
     return {
       module: NestMongoAuthModule,
-      imports: [JWTModule],
-      providers: [
-        { provide: NMA_MODULE_CONFIGS, useValue: options },
-        NestMongoAuthService,
-      ],
+      imports: [],
+      providers: [{ provide: NMA_MODULE_CONFIGS, useValue: options }, NestMongoAuthService],
       exports: [NestMongoAuthService],
     };
   }
